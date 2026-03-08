@@ -1,0 +1,25 @@
+# 环境变量 / 密钥（绝对不提交）
+.env
+.env.*
+!.env.example
+.tushare.env
+
+# 数据目录
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store

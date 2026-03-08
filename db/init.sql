@@ -1,0 +1,10 @@
+-- FinClaw 数据仓库 DDL 汇总
+-- 此文件仅供参考，实际执行请使用 init.sh
+--
+-- 1. 维表
+--    ddl/dim/dim_stock.sql
+--    ddl/dim/dim_trade_cal.sql
+--
+-- 2. 事实表（待补充）
+--
+-- 3. 索引（待补充）

@@ -1,0 +1,7 @@
+tushare
+psycopg2-binary
+python-dotenv
+pandas
+jupyter
+matplotlib
+sqlalchemy

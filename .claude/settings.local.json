@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker ps --filter name=finclaw-postgres --format \"table {{.Names}}\\\\t{{.Status}}\")",
+      "Bash(bash db/init.sh)",
+      "Bash(docker exec -i finclaw-postgres psql -U finclaw -d finclaw -c \"\\\\dt\")",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 -m pip show python-dotenv)",
+      "WebFetch(domain:tushare.pro)",
+      "Bash(docker exec -i finclaw-postgres psql -U finclaw -d finclaw -c \"ALTER TABLE fact_daily ALTER COLUMN pct_chg TYPE NUMERIC\\(12,4\\);\")",
+      "Bash(docker exec -i finclaw-postgres psql -U finclaw -d finclaw -c \"SELECT COUNT\\(*\\), MIN\\(trade_date\\), MAX\\(trade_date\\) FROM fact_adj_factor;\")",
+      "Bash(docker exec -i finclaw-postgres psql -U finclaw -d finclaw -c \"ALTER TABLE dim_company ALTER COLUMN employees TYPE BIGINT;\")",
+      "Bash(docker exec -i finclaw-postgres psql -U finclaw -d finclaw -c \"ALTER TABLE dim_company ALTER COLUMN employees TYPE INTEGER;\")",
+      "Bash(python -c \":*)"
+    ]
+  }
+}
