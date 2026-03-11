@@ -19,6 +19,18 @@ services:
       retries: 5
       start_period: 30s
 
+  qinglong:
+    image: whyour/qinglong:latest # 基于 Debian 的版本：whyour/qinglong:debian
+    restart: unless-stopped
+    volumes:
+      - qinglong_data:/ql/data
+    ports:
+      - "0.0.0.0:5700:5700"
+    environment:
+      QlBaseUrl: '/' # 部署路径非必须，以斜杠开头和结尾，比如 /test/
+    networks:
+      - db_net
+
   adminer:
     image: adminer
     restart: unless-stopped
@@ -34,6 +46,7 @@ services:
 
 volumes:
   postgres_data:
+  qinglong_data:
 
 networks:
   db_net:
