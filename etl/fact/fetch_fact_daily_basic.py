@@ -10,9 +10,12 @@ etl/fact/fetch_fact_daily_basic.py — 按交易日期拉取每日指标，upser
 import sys
 import logging
 import argparse
+import time
 import psycopg2
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import load_envs, get_pg_dsn, make_pro, to_date, clean_df, upsert, with_retry
@@ -24,6 +27,39 @@ log = logging.getLogger(__name__)
 PG_DSN      = get_pg_dsn()
 MAX_WORKERS = 3
 BATCH_SIZE  = 15
+MAX_CALLS_PER_MIN = 700
+
+
+class SlidingWindowRateLimiter:
+    """Simple thread-safe sliding-window limiter."""
+
+    def __init__(self, max_calls: int, window_seconds: int = 60):
+        self.max_calls = max_calls
+        self.window_seconds = window_seconds
+        self._timestamps = deque()
+        self._lock = Lock()
+
+    def acquire(self) -> None:
+        while True:
+            wait_seconds = 0.0
+            with self._lock:
+                now = time.monotonic()
+                cutoff = now - self.window_seconds
+                while self._timestamps and self._timestamps[0] <= cutoff:
+                    self._timestamps.popleft()
+
+                if len(self._timestamps) < self.max_calls:
+                    self._timestamps.append(now)
+                    return
+
+                # Wait until the oldest recorded call exits the time window.
+                wait_seconds = self.window_seconds - (now - self._timestamps[0]) + 0.001
+
+            if wait_seconds > 0:
+                time.sleep(wait_seconds)
+
+
+RATE_LIMITER = SlidingWindowRateLimiter(max_calls=MAX_CALLS_PER_MIN)
 
 FIELDS = (
     "ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,"
@@ -92,6 +128,7 @@ def fetch_one_date(trade_date: str) -> list[tuple]:
     pro = make_pro()
 
     def _call():
+        RATE_LIMITER.acquire()
         df = pro.daily_basic(trade_date=trade_date, fields=FIELDS)
         if df is None or df.empty:
             return []

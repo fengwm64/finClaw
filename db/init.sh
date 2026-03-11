@@ -5,7 +5,7 @@
 
 set -e
 
-CONTAINER="finclaw-postgres"
+CONTAINER="finclaw-db-postgres-1"
 DB_USER="finclaw"
 DB_NAME="finclaw"
 

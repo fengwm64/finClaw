@@ -1,14 +1,17 @@
+name: finclaw-db
+
 services:
   postgres:
     image: postgres:17
-    container_name: finclaw-postgres
     restart: unless-stopped
     env_file:
       - .env.postgres
     ports:
-      - "127.0.0.1:5432:5432"
+      - "0.0.0.0:5123:5432"
     volumes:
-      - /Volumes/ExtSSD/prj/finClaw/data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - db_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -16,16 +19,21 @@ services:
       retries: 5
       start_period: 30s
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: finclaw-pgadmin
+  adminer:
+    image: adminer
     restart: unless-stopped
-    env_file:
-      - .env.pgadmin
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
     ports:
-      - "127.0.0.1:5050:80"
-    volumes:
-      - /Volumes/ExtSSD/prj/finClaw/data/pgadmin:/var/lib/pgadmin
+      - "0.0.0.0:5124:8080"
+    networks:
+      - db_net
     depends_on:
       postgres:
         condition: service_healthy
+
+volumes:
+  postgres_data:
+
+networks:
+  db_net:
