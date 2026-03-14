@@ -32,11 +32,12 @@ def get_pg_dsn() -> dict:
 
 def make_pro() -> object:
     """创建并返回已配置自定义 endpoint 的 Tushare pro 实例。"""
-    token    = os.environ["TUSHARE_TOKEN"]
-    http_url = os.environ["TUSHARE_HTTP_URL"]
+    token = os.environ["TUSHARE_TOKEN"]
+    http_url = os.getenv("TUSHARE_HTTP_URL", "").strip()
     pro = ts.pro_api(token)
-    pro._DataApi__token    = token
-    pro._DataApi__http_url = http_url
+    if http_url:
+        pro._DataApi__token = token
+        pro._DataApi__http_url = http_url
     return pro
 
 
