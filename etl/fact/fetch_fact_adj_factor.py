@@ -11,7 +11,10 @@ etl/fact/fetch_fact_adj_factor.py — 按股票拉取复权因子，upsert 到 f
 import sys
 import logging
 import argparse
+import time
+import threading
 import psycopg2
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -26,6 +29,8 @@ PG_DSN       = get_pg_dsn()
 MAX_WORKERS  = 3       # 并发线程数
 SUBMIT_CHUNK = 300     # 每批提交的股票数，防止 futures 队列暴涨
 FLUSH_ROWS   = 10_000  # 累积超过此行数就写库
+RATE_LIMIT_PER_MIN = 500
+RATE_WINDOW_SECONDS = 60.0
 
 UPSERT_SQL = """
 INSERT INTO fact_adj_factor (ts_code, trade_date, adj_factor)
@@ -33,6 +38,27 @@ VALUES %s
 ON CONFLICT (trade_date, ts_code) DO UPDATE SET
     adj_factor = EXCLUDED.adj_factor;
 """
+
+
+_api_call_times = deque()
+_api_call_lock = threading.Lock()
+
+
+def throttle_adj_factor_calls() -> None:
+    """全局限流：所有线程合计每分钟最多调用 adj_factor 500 次。"""
+    while True:
+        now = time.monotonic()
+        with _api_call_lock:
+            while _api_call_times and now - _api_call_times[0] >= RATE_WINDOW_SECONDS:
+                _api_call_times.popleft()
+
+            if len(_api_call_times) < RATE_LIMIT_PER_MIN:
+                _api_call_times.append(now)
+                return
+
+            wait_seconds = RATE_WINDOW_SECONDS - (now - _api_call_times[0])
+
+        time.sleep(max(wait_seconds, 0.01))
 
 
 def get_stocks_with_latest(force: bool) -> tuple[list[str], dict[str, str]]:
@@ -62,6 +88,7 @@ def fetch_one_stock(ts_code: str, start_date: str | None) -> list[tuple]:
         kwargs["start_date"] = start_date
 
     def _call():
+        throttle_adj_factor_calls()
         df = pro.adj_factor(**kwargs)
         if df is None or df.empty:
             return []
