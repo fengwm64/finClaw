@@ -7,7 +7,10 @@
 
 import sys
 import logging
+import time
+import threading
 import psycopg2
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -22,6 +25,8 @@ PG_DSN       = get_pg_dsn()
 MAX_WORKERS  = 3
 SUBMIT_CHUNK = 500
 FLUSH_ROWS   = 20_000
+RATE_LIMIT_PER_MIN = 200
+RATE_WINDOW_SECONDS = 60.0
 
 FIELDS = "ts_code,name,start_date,end_date,ann_date,change_reason"
 COLS   = ["ts_code", "name", "start_date", "end_date", "ann_date", "change_reason"]
@@ -37,6 +42,27 @@ ON CONFLICT (ts_code, start_date) DO UPDATE SET
 """
 
 
+_api_call_times = deque()
+_api_call_lock = threading.Lock()
+
+
+def throttle_namechange_calls() -> None:
+    """全局限流：所有线程合计每分钟最多调用 namechange 200 次。"""
+    while True:
+        now = time.monotonic()
+        with _api_call_lock:
+            while _api_call_times and now - _api_call_times[0] >= RATE_WINDOW_SECONDS:
+                _api_call_times.popleft()
+
+            if len(_api_call_times) < RATE_LIMIT_PER_MIN:
+                _api_call_times.append(now)
+                return
+
+            wait_seconds = RATE_WINDOW_SECONDS - (now - _api_call_times[0])
+
+        time.sleep(max(wait_seconds, 0.01))
+
+
 def get_all_stocks() -> list[str]:
     with psycopg2.connect(**PG_DSN) as conn, conn.cursor() as cur:
         cur.execute("SELECT ts_code FROM dim_stock ORDER BY ts_code")
@@ -47,6 +73,7 @@ def fetch_one_stock(ts_code: str) -> list[tuple]:
     pro = make_pro()
 
     def _call():
+        throttle_namechange_calls()
         df = pro.namechange(ts_code=ts_code, fields=FIELDS)
         if df is None or df.empty:
             return []
